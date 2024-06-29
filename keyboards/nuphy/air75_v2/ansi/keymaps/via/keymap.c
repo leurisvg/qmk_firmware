@@ -15,7 +15,77 @@ You should have received a copy of the GNU General Public License
 along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
+#define DIRECTION_CHANGE_DELAY 1250
 #include QMK_KEYBOARD_H
+
+enum user_custom_keycodes {
+    MOVE_CURSOR = SAFE_RANGE
+};
+
+bool activate_mouse_movement = false;
+uint32_t last_activity_timer = 0;
+uint32_t direction_change_timer = 0;
+uint8_t move_step = 0; 
+
+bool process_record_user(uint16_t keycode, keyrecord_t *record) {
+    if (record->event.pressed) { // Disable macro when any key is pressed
+        activate_mouse_movement = false; 
+        mousekey_off(KC_MS_UP); 
+        mousekey_off(KC_MS_RIGHT); 
+        mousekey_off(KC_MS_DOWN); 
+        mousekey_off(KC_MS_LEFT); 
+    }
+        
+    switch (keycode) {
+        case MOVE_CURSOR:
+            if (record->event.pressed) {
+                activate_mouse_movement = true;
+                layer_on(2);
+                last_activity_timer = timer_read32();
+                direction_change_timer = timer_read32();
+                layer_off(2);
+            } else {
+                clear_keyboard();
+            }
+            break;
+    }
+    return true;
+}
+
+void matrix_scan_user(void) {
+    if (activate_mouse_movement) { 
+        if (timer_elapsed(direction_change_timer) > DIRECTION_CHANGE_DELAY) {
+            switch (move_step) {
+                case 0:
+                    mousekey_on(KC_MS_UP);  // Move cursor up
+                    mousekey_send();
+                    break;
+                case 1:
+                    mousekey_off(KC_MS_UP);
+                    mousekey_on(KC_MS_RIGHT);  // Move cursor right
+                    mousekey_send();
+                    break;
+                case 2:
+                    mousekey_off(KC_MS_RIGHT);
+                    mousekey_on(KC_MS_DOWN);  // Move cursor down
+                    mousekey_send();
+                    break;
+                case 3:
+                    mousekey_off(KC_MS_DOWN);
+                    mousekey_on(KC_MS_LEFT);  // Move cursor left
+                    mousekey_send();
+                    break;
+                case 4:
+                    mousekey_off(KC_MS_LEFT);
+                    move_step = -1;  // Reset step counter
+                    break;
+            }
+            move_step++;
+            last_activity_timer = timer_read32();  // Reset last_activity_timer
+            direction_change_timer = timer_read32();
+        }
+    }
+}
 
 const uint16_t PROGMEM keymaps[][MATRIX_ROWS][MATRIX_COLS] = {
 
@@ -30,7 +100,7 @@ const uint16_t PROGMEM keymaps[][MATRIX_ROWS][MATRIX_COLS] = {
 
 // layer Mac Fn
 [1] = LAYOUT_75_ansi(
-    _______,    KC_F1,      KC_F2,      KC_F3,     KC_F4,      KC_F5,       KC_F6,     KC_F7,      KC_F8,       KC_F9,     KC_F10,     KC_F11,     KC_F12,      SYS_PRT,    _______,    _______,
+    _______,    KC_F1,      KC_F2,      KC_F3,     KC_F4,      KC_F5,       KC_F6,     KC_F7,      KC_F8,       KC_F9,     KC_F10,     KC_F11,     KC_F12,      SYS_PRT,    _______,    MOVE_CURSOR,
     _______,    LNK_BLE1,   LNK_BLE2,   LNK_BLE3,  LNK_RF,     _______,     _______,   _______,    _______,     _______,   _______,    _______,	   _______,                 _______,    _______,
     _______,    _______,    _______,    _______,   _______,    _______,     _______,   _______,    _______,     _______,   _______,    DEV_RESET,  _______,                 BAT_SHOW,   _______,
     _______,    _______,    _______,    _______,   _______,    _______,     _______,   _______,    _______,     _______,   _______,    _______,                             _______,    _______,
